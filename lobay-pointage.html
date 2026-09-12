@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pointage Personnel</title>
+<style>
+:root{--bg:#0b0d10;--card:#151922;--card2:#1c2230;--text:#f4f6f8;--muted:#9aa4b2;--accent:#19d3ae;--danger:#ff647c;--border:#2a3140}
+*{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font-family:Arial,sans-serif}
+.app{max-width:720px;margin:auto;padding:18px}
+h1{font-size:27px;margin:4px 0 3px}.sub{color:var(--muted);margin-bottom:18px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:16px;margin-bottom:14px}
+.row{display:flex;gap:10px;align-items:center}.between{justify-content:space-between}
+select,input,button{font:inherit;border-radius:11px;border:1px solid var(--border);padding:11px;background:var(--card2);color:var(--text)}
+input{width:100%} button{cursor:pointer;border:0;background:var(--accent);color:#06120f;font-weight:700}
+button.secondary{background:var(--card2);color:var(--text);border:1px solid var(--border)}
+button.danger{background:var(--danger);color:#fff}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.stat{font-size:25px;font-weight:800;margin-top:5px}.label{color:var(--muted);font-size:13px}
+table{width:100%;border-collapse:collapse}th,td{padding:10px 5px;border-bottom:1px solid var(--border);text-align:left;font-size:14px}th{color:var(--muted)}
+.right{text-align:right}.sun{color:#ff647c}.empty{color:var(--muted);text-align:center;padding:20px}
+.small{font-size:12px;color:var(--muted);line-height:1.5}.actions{display:flex;gap:7px}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>⏱️ Pointage ديالي</h1>
+  <div class="sub">سجل غير الساعات ديالك وحسب الخلصة تلقائياً</div>
+
+  <div class="card">
+    <div class="grid">
+      <div><div class="label">الشهر</div><select id="month"></select></div>
+      <div><div class="label">السنة</div><input id="year" type="number"></div>
+    </div>
+    <div class="small" style="margin-top:10px">الأحد تقدر تخدم فيه: إلا دخلتي الساعات غادي يتحسبو عادي. إلا ما دخلتي والو ما كيتحسب والو.</div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">➕ زيد نهار</h3>
+    <div class="grid">
+      <div><div class="label">التاريخ</div><input id="date" type="date"></div>
+      <div><div class="label">الساعات</div><input id="hours" inputmode="decimal" placeholder="مثال: 8 أو 7.5"></div>
+    </div>
+    <button style="width:100%;margin-top:10px" onclick="addEntry()">حفظ النهار</button>
+    <div class="small" style="margin-top:8px">تقدر تكتب 7.5 = 7 ساعات و30 دقيقة.</div>
+  </div>
+
+  <div class="grid">
+    <div class="card"><div class="label">مجموع الساعات</div><div class="stat" id="totalHours">0H</div></div>
+    <div class="card"><div class="label">الخلصة</div><div class="stat" id="totalPay">0.00 DH</div></div>
+  </div>
+
+  <div class="card">
+    <div class="row between"><h3 style="margin:0">📅 الأيام</h3><button class="secondary" onclick="clearMonth()">مسح الشهر</button></div>
+    <div id="entries"></div>
+  </div>
+
+  <div class="card">
+    <div class="row between">
+      <h3 style="margin:0">📚 السجل القديم</h3>
+      <button class="secondary" onclick="renderHistory()">تحديث</button>
+    </div>
+    <div class="small" style="margin-top:8px">كل شهر كيبقى مسجل هنا، مع مجموع الساعات والخلصة. ما كيتحيدش ملي كتبدل الشهر.</div>
+    <div id="history" style="margin-top:12px"></div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">💰 أثمنة الساعات</h3>
+    <div class="small">تقدر تحدد فين كيتبدل الثمن. مثلاً: 5 يعني من 1 حتى 4 ثمن أول، ومن 5 حتى آخر الشهر ثمن ثاني.</div>
+    <div class="row" style="margin-top:10px">
+      <div style="flex:1"><div class="label">بداية الثمن الثاني</div><input id="splitDay" type="number" min="2" max="31" value="${data.splitDay}"></div>
+      <div class="small" style="flex:2">مثال آخر: دخل <b>12</b> → من 1 حتى 11، ومن 12 حتى آخر الشهر.</div>
+    </div>
+    <div id="rates" style="margin-top:12px"></div>
+    <button class="secondary" style="width:100%;margin-top:10px" onclick="saveRates()">حفظ الأثمنة والإعداد</button>
+  </div>
+</div>
+
+<script>
+const names=["يناير","فبراير","مارس","أبريل","ماي","يونيو","يوليوز","غشت","شتنبر","أكتوبر","نونبر","دجنبر"];
+const key="my_personal_pointage_v1";
+let data=JSON.parse(localStorage.getItem(key)||"null")||{entries:{}, splitDay:5, rates:[
+ {a:17,b:17.10},{a:17.10,b:17.20},{a:17.20,b:17.25},{a:17.25,b:17.30},{a:17.30,b:17.35},
+ {a:17.35,b:17.40},{a:17.40,b:17.45},{a:17.45,b:17.50},{a:17.50,b:17.55},{a:17.55,b:17.60},
+ {a:17.60,b:17.65},{a:17.65,b:17.70}
+]};
+const month=document.getElementById("month"), year=document.getElementById("year"), date=document.getElementById("date");
+names.forEach((n,i)=>month.add(new Option(n,i)));
+if(data.splitDay==null)data.splitDay=5;
+if(!data.monthRates)data.monthRates={};
+if(!data.monthSplits)data.monthSplits={};
+const now=new Date(); month.value=now.getMonth(); year.value=now.getFullYear();
+function save(){
+  if(!data.monthRates)data.monthRates={};
+  if(!data.monthSplits)data.monthSplits={};
+  const mk=monthKey();
+  data.monthRates[mk]={...data.rates[+month.value]};
+  data.monthSplits[mk]=data.splitDay;
+  localStorage.setItem(key,JSON.stringify(data));
+}
+function monthKey(){return `${year.value}-${String(+month.value+1).padStart(2,"0")}`}
+function rateFor(d){
+  const r=data.rates[+month.value]||{a:17,b:17.10};
+  return d<=(Number(data.splitDay)||5)-1?r.a:r.b;
+}
+function addEntry(){
+  if(!date.value||!hours.value)return alert("دخل التاريخ والساعات.");
+  const h=parseFloat(String(hours.value).replace(",",".")); if(!Number.isFinite(h)||h<0)return alert("الساعات غير صحيحة.");
+  const dt=new Date(date.value+"T12:00:00");
+  if(dt.getMonth()!=+month.value||dt.getFullYear()!=+year.value)return alert("التاريخ ماشي فالشهر المختار.");
+  const k=date.value, dow=dt.getDay();
+  data.entries[k]=h;
+  save(); render();
+  hours.value="";
+}
+function del(k){delete data.entries[k];save();render()}
+function clearMonth(){
+  if(!confirm("مسح جميع الأيام ديال هاد الشهر؟"))return;
+  const prefix=monthKey(); Object.keys(data.entries).forEach(k=>{if(k.startsWith(prefix))delete data.entries[k]});
+  save();render();
+}
+function fmtHours(h){
+  const whole=Math.floor(h), min=Math.round((h-whole)*60);
+  if(min===60)return `${whole+1}H`;
+  return min?`${whole}H${String(min).padStart(2,"0")}`:`${whole}H`;
+}
+function render(){
+  const prefix=monthKey(), list=Object.entries(data.entries).filter(([k])=>k.startsWith(prefix)).sort();
+  let totalH=0,totalPay=0;
+  let rows="";
+  list.forEach(([k,h])=>{
+    const dt=new Date(k+"T12:00:00"), sun=dt.getDay()===0, rate=rateFor(dt.getDate()), pay=h*rate;
+    totalH+=h; totalPay+=pay;
+    rows+=`<tr><td class="${sun?'sun':''}">${k.slice(8,10)} ${names[dt.getMonth()]}${sun?' · الأحد':''}</td><td>${fmtHours(h)}</td><td>${rate.toFixed(2)} DH</td><td class="right">${pay.toFixed(2)} DH</td><td><button class="danger" onclick="del('${k}')">×</button></td></tr>`;
+  });
+  document.getElementById("totalHours").textContent=fmtHours(totalH);
+  document.getElementById("totalPay").textContent=totalPay.toFixed(2)+" DH";
+  document.getElementById("entries").innerHTML=list.length?`<table><thead><tr><th>النهار</th><th>الساعات</th><th>DH/H</th><th class="right">المبلغ</th><th></th></tr></thead><tbody>${rows}</tbody></table>`:`<div class="empty">مازال ما سجلتي حتى نهار.</div>`;
+}
+function renderHistory(){
+  const grouped={};
+  Object.entries(data.entries).forEach(([k,h])=>{
+    const [y,m]=k.split("-");
+    const mk=`${y}-${m}`;
+    if(!grouped[mk])grouped[mk]=[];
+    grouped[mk].push([k,h]);
+  });
+  const keys=Object.keys(grouped).sort().reverse();
+  if(!keys.length){
+    document.getElementById("history").innerHTML='<div class="empty">مازال ما كاين حتى شهر قديم مسجل.</div>';
+    return;
+  }
+  let out='<table><thead><tr><th>الشهر</th><th>الساعات</th><th class="right">الخلصة</th></tr></thead><tbody>';
+  keys.forEach(mk=>{
+    let th=0,tp=0;
+    grouped[mk].forEach(([k,h])=>{
+      const dt=new Date(k+"T12:00:00");
+      th+=h;
+      const rate=rateForMonth(mk,dt.getDate());
+      tp+=h*rate;
+    });
+    const [y,m]=mk.split("-");
+    out+=`<tr><td>${names[+m-1]} ${y}</td><td>${fmtHours(th)}</td><td class="right">${tp.toFixed(2)} DH</td></tr>`;
+  });
+  out+='</tbody></table>';
+  document.getElementById("history").innerHTML=out;
+}
+function rateForMonth(mk,d){
+  // Historical entries use the saved monthly rate when available.
+  // Current app rates are the default fallback for months without a snapshot.
+  const r=data.monthRates && data.monthRates[mk] ? data.monthRates[mk] : data.rates[+mk.slice(5,7)-1]||{a:17,b:17.10};
+  const split=data.monthSplits && data.monthSplits[mk] ? data.monthSplits[mk] : data.splitDay;
+  return d < (Number(split)||5) ? r.a : r.b;
+}
+
+function renderRates(){
+  document.getElementById("rates").innerHTML=data.rates.map((r,i)=>`
+  <div class="row" style="margin-bottom:7px"><div style="width:92px">${names[i]}</div>
+  <input id="a${i}" type="number" step="0.01" value="${r.a}" title="قبل يوم التبديل">
+  <span>→</span><input id="b${i}" type="number" step="0.01" value="${r.b}" title="من يوم التبديل"></div>`).join("");
+}
+function saveRates(){
+  const sd=parseInt(document.getElementById("splitDay").value,10);
+  if(!Number.isInteger(sd)||sd<2||sd>31)return alert("دخل يوم التبديل بين 2 و31.");
+  data.splitDay=sd;
+  data.rates=data.rates.map((r,i)=>({a:parseFloat(document.getElementById("a"+i).value)||0,b:parseFloat(document.getElementById("b"+i).value)||0}));
+  save();render();
+  alert("تسجلات الأثمنة.");
+}
+month.onchange=()=>{render();renderHistory();date.value="";};
+year.onchange=()=>{render();renderHistory();date.value="";};
+date.min="2020-01-01";
+renderRates();render();renderHistory();
+</script>
+</body>
+</html>
